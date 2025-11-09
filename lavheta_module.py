@@ -1,5 +1,5 @@
-# meta developer: @YourChannel
-# meta banner: https://i.imgur.com/your_banner.jpg
+# meta developer: @LavHeta
+# meta banner: https://raw.githubusercontent.com/sz3333/LavHeta/refs/heads/main/icon.jpg
 
 __version__ = (1, 0, 0)
 
