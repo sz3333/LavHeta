@@ -1,5 +1,5 @@
-# meta developer: @LavHeta
-# meta banner: https://raw.githubusercontent.com/sz3333/LavHeta/refs/heads/main/icon.jpg
+# meta developer: @YourChannel
+# meta banner: https://i.imgur.com/your_banner.jpg
 
 __version__ = (1, 0, 0)
 
@@ -146,7 +146,8 @@ class LavHeta(loader.Module):
                     timeout=aiohttp.ClientTimeout(total=30)
                 ) as response:
                     if response.status == 200:
-                        data = await response.json()
+                        text = await response.text()
+                        data = json.loads(text)
                         self._modules_cache = data if isinstance(data, list) else []
                         self._cache_time = current_time
                         logger.info(f"Loaded {len(self._modules_cache)} modules from LavHeta")
