@@ -1,1 +1,1 @@
-**🔎 ZovHeta this is [Legacy](https://github.com/Crayz310/Legacy) module for searching modules!**
+**🔎 LavHeta this is [LidFax](https://github.com/sz3333/LidFax-userbot) module for searching modules!**
