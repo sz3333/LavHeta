@@ -1,405 +1,184 @@
-# meta developer: @LavHeta
-# meta banner: https://raw.githubusercontent.com/sz3333/LavHeta/refs/heads/main/icon.jpg
+# ©️ LavHeta Project 2025
+# 💜 by Lid & Mochi
+# 🔗 https://github.com/sz3333/LavHeta
 
-__version__ = (1, 0, 0)
-
-import aiohttp
-import asyncio
 import json
 import logging
-from typing import List, Dict, Optional
+import difflib
+import requests
+from typing import List, Tuple, Union, Optional
+from dataclasses import dataclass
+from hikkatl.tl.types import Message
 from .. import loader, utils
-from ..types import InlineCall, InlineQuery
 
 logger = logging.getLogger(__name__)
 
 
+@dataclass
+class LavModule:
+    name: str
+    author: str
+    repo: str
+    description: str
+    commands: List[dict]
+    install: str
+
+
+@loader.tds
 class LavHeta(loader.Module):
-    """Module for searching modules in LavHeta repository"""
+    """💜 Search modules from LavHeta Repository"""
 
     strings = {
         "name": "LavHeta",
-        "searching": "🔎 <b>Searching...</b>",
-        "no_query": "❌ <b>Enter a query to search.</b>",
-        "no_results": "❌ <b>No modules found.</b>",
+        "no_query": "❌ <b>Укажи запрос для поиска!</b>",
+        "no_results": "😿 <b>Ничего не найдено...</b>",
+        "loading": "💠 <b>Подгружаем базу LavHeta...</b>",
+        "install_btn": "💜 Установить",
+        "installed": "✅ <b>Модуль успешно установлен!</b>",
+        "error": "❌ <b>Ошибка установки!</b>",
         "result": (
-            "🔎 <b>Result {idx}/{total} by query:</b> <code>{query}</code>\n\n"
-            "📦 <code>{name}</code> <b>by</b> <code>{author}</code>\n"
-            "📝 <b>Description:</b> {description}\n\n"
-            "{commands}"
-            "💾 <b>Install:</b> <code>{prefix}dlm {link}</code>"
+            "✨ <b>Результаты по запросу:</b> <code>{query}</code>\n\n"
+            "📦 <b>{name}</b>\n"
+            "👤 <b>Автор:</b> {author}\n"
+            "📁 <b>Репозиторий:</b> <code>{repo}</code>\n\n"
+            "📜 <b>Описание:</b> {desc}\n\n"
+            "🧩 <b>Команды:</b>\n{commands}\n\n"
+            "🔗 <b>Ссылка для установки:</b>\n<code>{install}</code>"
         ),
-        "result_single": (
-            "🔎 <b>Result by query:</b> <code>{query}</code>\n\n"
-            "📦 <code>{name}</code> <b>by</b> <code>{author}</code>\n"
-            "📝 <b>Description:</b> {description}\n\n"
-            "{commands}"
-            "💾 <b>Install:</b> <code>{prefix}dlm {link}</code>"
-        ),
-        "commands": "👨‍💻 <b>Commands:</b>\n{cmds}\n\n",
-        "inline_commands": "🤖 <b>Inline commands:</b>\n{cmds}\n\n",
-        "no_info": "No information",
-        "inline_no_query": "Enter a query to search",
-        "inline_desc": "Name, command, description, author",
-        "inline_no_results": "No modules found",
-        "api_error": "❌ <b>Error loading modules list</b>",
-        "rating_added": "👍 Rating submitted!",
-        "rating_changed": "👍 Rating changed!",
-        "prev_page": "◀️ Previous",
-        "next_page": "▶️ Next",
-        "page_info": "{current}/{total}",
     }
 
-    strings_ru = {
-        "searching": "🔎 <b>Поиск...</b>",
-        "no_query": "❌ <b>Введите запрос для поиска.</b>",
-        "no_results": "❌ <b>Модули не найдены.</b>",
-        "result": (
-            "🔎 <b>Результат {idx}/{total} по запросу:</b> <code>{query}</code>\n\n"
-            "📦 <code>{name}</code> <b>от</b> <code>{author}</code>\n"
-            "📝 <b>Описание:</b> {description}\n\n"
-            "{commands}"
-            "💾 <b>Установка:</b> <code>{prefix}dlm {link}</code>"
-        ),
-        "result_single": (
-            "🔎 <b>Результат по запросу:</b> <code>{query}</code>\n\n"
-            "📦 <code>{name}</code> <b>от</b> <code>{author}</code>\n"
-            "📝 <b>Описание:</b> {description}\n\n"
-            "{commands}"
-            "💾 <b>Установка:</b> <code>{prefix}dlm {link}</code>"
-        ),
-        "commands": "👨‍💻 <b>Команды:</b>\n{cmds}\n\n",
-        "inline_commands": "🤖 <b>Инлайн команды:</b>\n{cmds}\n\n",
-        "no_info": "Нет информации",
-        "inline_no_query": "Введите запрос для поиска",
-        "inline_desc": "Название, команда, описание, автор",
-        "inline_no_results": "Модули не найдены",
-        "api_error": "❌ <b>Ошибка загрузки списка модулей</b>",
-        "rating_added": "👍 Оценка отправлена!",
-        "rating_changed": "👍 Оценка изменена!",
-        "prev_page": "◀️ Назад",
-        "next_page": "▶️ Вперед",
-        "page_info": "{current}/{total}",
-    }
+    async def client_ready(self):
+        self.repo_list = [
+            repo.strip() for repo in open("/mnt/data/repos.txt").readlines() if repo.strip()
+        ]
 
-    strings_ua = {
-        "searching": "🔎 <b>Пошук...</b>",
-        "no_query": "❌ <b>Введіть запит для пошуку.</b>",
-        "no_results": "❌ <b>Модулі не знайдені.</b>",
-        "result": (
-            "🔎 <b>Результат {idx}/{total} за запитом:</b> <code>{query}</code>\n\n"
-            "📦 <code>{name}</code> <b>від</b> <code>{author}</code>\n"
-            "📝 <b>Опис:</b> {description}\n\n"
-            "{commands}"
-            "💾 <b>Встановлення:</b> <code>{prefix}dlm {link}</code>"
-        ),
-        "result_single": (
-            "🔎 <b>Результат за запитом:</b> <code>{query}</code>\n\n"
-            "📦 <code>{name}</code> <b>від</b> <code>{author}</code>\n"
-            "📝 <b>Опис:</b> {description}\n\n"
-            "{commands}"
-            "💾 <b>Встановлення:</b> <code>{prefix}dlm {link}</code>"
-        ),
-        "commands": "👨‍💻 <b>Команди:</b>\n{cmds}\n\n",
-        "inline_commands": "🤖 <b>Інлайн команди:</b>\n{cmds}\n\n",
-        "no_info": "Немає інформації",
-        "inline_no_query": "Введіть запит для пошуку",
-        "inline_desc": "Назва, команда, опис, автор",
-        "inline_no_results": "Модулі не знайдені",
-        "api_error": "❌ <b>Помилка завантаження списку модулів</b>",
-        "rating_added": "👍 Оцінка відправлена!",
-        "rating_changed": "👍 Оцінка змінена!",
-        "prev_page": "◀️ Назад",
-        "next_page": "▶️ Вперед",
-        "page_info": "{current}/{total}",
-    }
+        self._lavdb: List[LavModule] = []
+        await self._update_db()
 
-    def __init__(self):
-        self._modules_cache: List[Dict] = []
-        self._cache_time: float = 0
-        self._index_url = "https://raw.githubusercontent.com/sz3333/LavHeta/refs/heads/main/LavIndexRaw.json"
-
-    async def client_ready(self, client, db):
-        self._client = client
-        self._db = db
-        await self._load_modules()
-
-    async def _load_modules(self, force: bool = False) -> bool:
-        """Load modules from index"""
-        current_time = asyncio.get_event_loop().time()
-        
-        # Cache for 5 minutes
-        if not force and self._modules_cache and (current_time - self._cache_time) < 300:
-            return True
-
+    async def _update_db(self):
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(
-                    self._index_url,
-                    timeout=aiohttp.ClientTimeout(total=30)
-                ) as response:
-                    if response.status == 200:
-                        text = await response.text()
-                        data = json.loads(text)
-                        self._modules_cache = data if isinstance(data, list) else []
-                        self._cache_time = current_time
-                        logger.info(f"Loaded {len(self._modules_cache)} modules from LavHeta")
-                        return True
+            data = (
+                await utils.run_sync(
+                    requests.get,
+                    "https://raw.githubusercontent.com/sz3333/LavHeta/refs/heads/main/LavIndexRaw.json",
+                )
+            ).json()
+
+            self._lavdb = [
+                LavModule(
+                    name=item.get("name", "Unknown"),
+                    author=item.get("author", "Unknown"),
+                    repo=item.get("repo", "Unknown"),
+                    description=item.get("description", ""),
+                    commands=item.get("commands", []),
+                    install=item.get("install", ""),
+                )
+                for item in data.get("modules", [])
+            ]
+
         except Exception as e:
-            logger.error(f"Error loading modules: {e}")
-            return False
+            logger.error(f"LavHeta fetch error: {e}")
+            self._lavdb = []
 
-        return False
-
-    def _search_modules(self, query: str) -> List[Dict]:
-        """Search modules by query"""
-        query_lower = query.lower()
+    def _search(self, query: str) -> List[Tuple[LavModule, float]]:
         results = []
-        seen = set()
-
-        for module in self._modules_cache:
-            # Create unique key
-            key = f"{module.get('name', '')}_{module.get('author', '')}"
-            if key in seen:
-                continue
-
-            # Search in module name
-            if query_lower in module.get("name", "").lower():
-                results.append(module)
-                seen.add(key)
-                continue
-
-            # Search in commands
-            if "commands" in module and module["commands"]:
-                for cmd in module["commands"]:
-                    cmd_name = cmd.get("name", "")
-                    if query_lower in cmd_name.lower():
-                        results.append(module)
-                        seen.add(key)
-                        break
-
-            # Search in description
-            if query_lower in module.get("description", "").lower():
-                if key not in seen:
-                    results.append(module)
-                    seen.add(key)
-                continue
-
-            # Search in author
-            if query_lower in module.get("author", "").lower():
-                if key not in seen:
-                    results.append(module)
-                    seen.add(key)
-
+        for module in self._lavdb:
+            score = max(
+                difflib.SequenceMatcher(None, query, module.name).ratio(),
+                difflib.SequenceMatcher(None, query, module.description).ratio(),
+                difflib.SequenceMatcher(None, query, module.repo).ratio(),
+            )
+            if score >= 0.4:
+                results.append((module, score))
+        results.sort(key=lambda x: x[1], reverse=True)
         return results
 
-    def _format_commands(self, module: Dict) -> str:
-        """Format commands for display"""
-        if not module.get("commands"):
-            return ""
+    def _format(self, module: LavModule, query: str) -> str:
+        commands_str = ""
+        for cmd in module.commands:
+            name = cmd.get("name")
+            desc = cmd.get("description", {}).get("ru_doc") or cmd.get("description", {}).get("en_doc", "")
+            commands_str += f"▫️ <code>{utils.escape_html(name)}</code> — {utils.escape_html(desc)}\n"
 
-        regular_cmds = []
-        inline_cmds = []
+        return self.strings("result").format(
+            query=utils.escape_html(query),
+            name=utils.escape_html(module.name),
+            author=utils.escape_html(module.author),
+            repo=utils.escape_html(module.repo),
+            desc=utils.escape_html(module.description),
+            commands=commands_str or "—",
+            install=utils.escape_html(module.install),
+        )
 
-        for cmd in module["commands"][:10]:  # Limit to 10 commands
-            name = cmd.get("name", "")
-            desc = cmd.get("description", "")
-            
-            if cmd.get("inline", False):
-                inline_cmds.append(
-                    f"<code>@{self.inline.bot_username} {utils.escape_html(name)}</code> - "
-                    f"{utils.escape_html(desc) if desc else self.strings['no_info']}"
-                )
-            else:
-                regular_cmds.append(
-                    f"<code>{self.get_prefix()}{utils.escape_html(name)}</code> - "
-                    f"{utils.escape_html(desc) if desc else self.strings['no_info']}"
-                )
+    async def _install_module(self, call, module: LavModule, text: str):
+        await call.edit("💜 <b>Установка...</b>")
+        try:
+            loader_mod = self.lookup("loader")
+            await loader_mod.download_and_install(module.install, None)
+            await call.edit(self.strings("installed"))
+        except Exception:
+            await call.edit(self.strings("error"))
 
-        result = ""
-        if regular_cmds:
-            result += self.strings["commands"].format(cmds="\n".join(regular_cmds))
-        if inline_cmds:
-            result += self.strings["inline_commands"].format(cmds="\n".join(inline_cmds))
-
-        return result
-
-    def _format_module(
-        self,
-        module: Dict,
-        query: str,
-        idx: int = 0,
-        total: int = 1
-    ) -> str:
-        """Format module info for display"""
-        name = utils.escape_html(module.get("name", "Unknown"))
-        author = utils.escape_html(module.get("author", "Unknown"))
-        description = utils.escape_html(module.get("description", self.strings["no_info"]))
-        link = module.get("link", "")
-        commands = self._format_commands(module)
-
-        if total > 1:
-            template = self.strings["result"]
-            return template.format(
-                idx=idx,
-                total=total,
-                query=utils.escape_html(query),
-                name=name,
-                author=author,
-                description=description,
-                commands=commands,
-                prefix=self.get_prefix(),
-                link=link
-            )
-        else:
-            template = self.strings["result_single"]
-            return template.format(
-                query=utils.escape_html(query),
-                name=name,
-                author=author,
-                description=description,
-                commands=commands,
-                prefix=self.get_prefix(),
-                link=link
-            )
-
-    async def _nav_callback(
-        self,
-        call: InlineCall,
-        modules: List[Dict],
-        query: str,
-        page: int
-    ):
-        """Navigation callback"""
-        if not (0 <= page < len(modules)):
-            await call.answer("Invalid page")
+    @loader.command()
+    async def lheta(self, message: Message):
+        """<запрос> — поиск модулей LavHeta"""
+        query = utils.get_args_raw(message)
+        if not query:
+            await utils.answer(message, self.strings("no_query"))
             return
 
-        module = modules[page]
-        text = self._format_module(module, query, page + 1, len(modules))
-        
-        markup = self._create_markup(modules, query, page)
-        
-        photo = module.get("banner") or module.get("pic")
-        
-        try:
-            await call.edit(
-                text=text,
-                reply_markup=markup,
-                **({"photo": photo} if photo else {})
-            )
-        except Exception:
-            await call.edit(text=text, reply_markup=markup)
+        if not self._lavdb:
+            await utils.answer(message, self.strings("loading"))
+            await self._update_db()
 
-    def _create_markup(
-        self,
-        modules: List[Dict],
-        query: str,
-        page: int
-    ) -> List[List[Dict]]:
-        """Create inline markup with navigation"""
+        results = self._search(query)
+        if not results:
+            await utils.answer(message, self.strings("no_results"))
+            return
+
+        # показать первый результат
+        index = 0
+        module = results[index][0]
+        text = self._format(module, query)
+
+        async def update(call, new_index):
+            mod = results[new_index][0]
+            new_text = self._format(mod, query)
+            await call.edit(
+                new_text,
+                reply_markup=self._buttons(query, results, new_index),
+            )
+
+        await self.inline.form(
+            message=message,
+            text=text,
+            reply_markup=self._buttons(query, results, index),
+        )
+
+    def _buttons(self, query: str, results, index: int):
         buttons = []
-        
-        if len(modules) > 1:
-            nav_row = []
-            
-            if page > 0:
-                nav_row.append({
-                    "text": self.strings["prev_page"],
-                    "callback": self._nav_callback,
-                    "args": (modules, query, page - 1)
-                })
-            
-            nav_row.append({
-                "text": self.strings["page_info"].format(
-                    current=page + 1,
-                    total=len(modules)
-                ),
-                "callback": lambda c: c.answer()
-            })
-            
-            if page < len(modules) - 1:
-                nav_row.append({
-                    "text": self.strings["next_page"],
-                    "callback": self._nav_callback,
-                    "args": (modules, query, page + 1)
-                })
-            
-            buttons.append(nav_row)
+
+        if index > 0:
+            buttons.append(
+                {"text": "⬅️", "callback": self._switch, "args": (query, results, index - 1)}
+            )
+
+        buttons.append(
+            {
+                "text": self.strings("install_btn"),
+                "callback": self._install_module,
+                "args": (results[index][0], self._format(results[index][0], query)),
+            }
+        )
+
+        if index < len(results) - 1:
+            buttons.append(
+                {"text": "➡️", "callback": self._switch, "args": (query, results, index + 1)}
+            )
 
         return buttons
 
-    @loader.command()
-    async def lavheta(self, message):
-        """<query> - Search modules in LavHeta repository"""
-        args = utils.get_args_raw(message)
-        
-        if not args:
-            await utils.answer(message, self.strings["no_query"])
-            return
-
-        status_msg = await utils.answer(message, self.strings["searching"])
-
-        # Reload modules if needed
-        if not await self._load_modules():
-            await utils.answer(message, self.strings["api_error"])
-            return
-
-        results = self._search_modules(args)
-
-        if not results:
-            await utils.answer(message, self.strings["no_results"])
-            return
-
-        # Limit results
-        results = results[:50]
-
-        module = results[0]
-        text = self._format_module(module, args, 1, len(results))
-        markup = self._create_markup(results, args, 0)
-
-        photo = module.get("banner") or module.get("pic")
-
-        try:
-            await self.inline.form(
-                message=message,
-                text=text,
-                reply_markup=markup,
-                **({"photo": photo} if photo else {})
-            )
-            await status_msg.delete()
-        except Exception as e:
-            logger.error(f"Error creating form: {e}")
-            await utils.answer(message, text)
-
-    @loader.inline_handler()
-    async def lavheta_inline(self, query: InlineQuery):
-        """Search modules in LavHeta repository"""
-        if not query.args:
-            return {
-                "title": self.strings["inline_no_query"],
-                "description": self.strings["inline_desc"],
-                "message": self.strings["no_query"],
-                "thumb": "https://img.icons8.com/color/512/search.png",
-            }
-
-        await self._load_modules()
-        results = self._search_modules(query.args)
-
-        if not results:
-            return {
-                "title": self.strings["inline_no_results"],
-                "description": self.strings["inline_desc"],
-                "message": self.strings["no_results"],
-                "thumb": "https://img.icons8.com/color/512/nothing-found.png",
-            }
-
-        return [
-            {
-                "title": utils.escape_html(module.get("name", "Unknown")),
-                "description": utils.escape_html(module.get("description", ""))[:100],
-                "message": self._format_module(module, query.args),
-                "thumb": module.get("pic", "https://img.icons8.com/color/512/module.png"),
-            }
-            for module in results[:50]
-        ]
+    async def _switch(self, call, query, results, new_index):
+        mod = results[new_index][0]
+        new_text = self._format(mod, query)
+        await call.edit(new_text, reply_markup=self._buttons(query, results, new_index))
