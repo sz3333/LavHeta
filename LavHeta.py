@@ -1,5 +1,5 @@
-# meta developer: @YourChannel
-# meta banner: https://i.imgur.com/your_banner.jpg
+# meta developer: @LavHeta
+# meta banner: https://raw.githubusercontent.com/sz3333/LavHeta/refs/heads/main/icon.jpg
 
 __version__ = (1, 0, 0)
 
@@ -115,16 +115,9 @@ class LavHeta(loader.Module):
     }
 
     def __init__(self):
-        self.config = loader.ModuleConfig(
-            loader.ConfigValue(
-                "index_url",
-                "https://raw.githubusercontent.com/sz3333/LavHeta/refs/heads/main/LavIndexRaw.json",
-                lambda: "URL to modules index",
-                validator=loader.validators.String(),
-            )
-        )
         self._modules_cache: List[Dict] = []
         self._cache_time: float = 0
+        self._index_url = "https://raw.githubusercontent.com/sz3333/LavHeta/refs/heads/main/LavIndexRaw.json"
 
     async def client_ready(self, client, db):
         self._client = client
@@ -142,7 +135,7 @@ class LavHeta(loader.Module):
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(
-                    self.config["index_url"],
+                    self._index_url,
                     timeout=aiohttp.ClientTimeout(total=30)
                 ) as response:
                     if response.status == 200:
