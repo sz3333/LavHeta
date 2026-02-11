@@ -1,6 +1,7 @@
 import asyncio
 import os
 import signal
+import time
 from aiogram import Bot, Dispatcher, Router, types
 from aiogram.filters import Command
 
@@ -114,6 +115,15 @@ async def terminate_cmd(message: types.Message):
             await message.answer("Процесс не найден")
     except Exception as e:
         await message.answer(f"Ошибка: {e}")
+
+# -------------------- Ping --------------------
+@router.message(Command(commands=["ping"]))
+async def ping_cmd(message: types.Message):
+    start = time.time()
+    sent = await message.answer("Pinging…")
+    end = time.time()
+    ms = round((end - start) * 1000, 2)
+    await sent.edit_text(f"Pong! 🏓\nЗадержка до Telegram: {ms} ms")
 
 # -------------------- запуск --------------------
 dp.include_router(router)
